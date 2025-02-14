@@ -1,0 +1,14 @@
+# Environment files
+.env
+
+# Pi-hole runtime data
+pihole-data/etc-pihole/*
+!pihole-data/etc-pihole/.gitkeep
+pihole-data/etc-dnsmasq.d/*
+!pihole-data/etc-dnsmasq.d/.gitkeep
+
+# OS specific files
+.DS_Store
+*~
+*.swp
+*.swo
