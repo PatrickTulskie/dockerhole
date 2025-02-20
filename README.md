@@ -107,6 +107,21 @@ All Pi-hole configuration and data are stored in the `pihole-data` directory:
 - `etc-pihole/`: Contains Pi-hole configuration files
 - `etc-dnsmasq.d/`: Contains DNS configuration files
 
+## Maintenance
+
+### Updating Docker Images
+To update your Docker images and restart the services with the latest versions:
+```bash
+./scripts/update.sh
+```
+
+This script will:
+1. Pull the latest versions of all Docker images
+2. Stop running containers
+3. Prune unused Docker resources
+4. Restart the services with updated images
+5. Verify that services are running properly
+
 ## Stopping Pi-hole
 
 To stop all containers:
