@@ -140,5 +140,10 @@ cat <<EOF
   Then flush the DNS cache:
     sudo killall -HUP mDNSResponder
 
+  ── Set / reset your Pi-hole password ─────────────────────
+
+  If this is a fresh install or you need to change the password:
+    docker compose exec pihole pihole setpassword
+
 ============================================================
 EOF
