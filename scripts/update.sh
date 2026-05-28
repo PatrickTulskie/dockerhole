@@ -1,31 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Exit on any error
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "🔄 Starting Docker environment update process..."
+cd "$PROJECT_DIR"
 
-# Change to the project directory (assumes script is run from scripts directory)
-cd "$(dirname "$0")/.."
-
-echo "⬇️  Pulling latest images..."
+echo "Pulling latest images..."
 docker compose pull
 
-echo "🚀 Updating containers..."
+echo "Restarting containers..."
 docker compose up -d --remove-orphans
 
-echo "🧹 Pruning unused images..."
+echo "Pruning unused images..."
 docker image prune -f
 
-echo "✨ Update complete!"
-
-# Check if services are healthy
-echo "🔍 Checking service health..."
-sleep 5  # Give services a moment to start
+echo "Checking service health..."
+sleep 5
 
 if docker compose ps | grep -q "Up"; then
-    echo "✅ Services are running properly!"
+  echo "Services are running."
 else
-    echo "❌ Warning: Services might not have started correctly. Please check 'docker compose ps'"
-    exit 1
+  echo "Warning: services may not have started correctly. Run: docker compose ps"
+  exit 1
 fi

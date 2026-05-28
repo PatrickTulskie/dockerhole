@@ -7,6 +7,10 @@ pihole-data/etc-pihole/*
 pihole-data/etc-dnsmasq.d/*
 !pihole-data/etc-dnsmasq.d/.gitkeep
 
+# dnscrypt-proxy downloads its resolver list into config/ at runtime
+config/public-resolvers.md
+config/public-resolvers.md.minisig
+
 # OS specific files
 .DS_Store
 *~

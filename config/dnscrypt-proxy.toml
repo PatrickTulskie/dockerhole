@@ -1,0 +1,22 @@
+# Listen on all container interfaces so Pi-hole can reach us via the Docker network
+listen_addresses = ['0.0.0.0:5053']
+
+# Pin to Cloudflare's DoH servers (fetched from the public resolvers list below)
+server_names = ['cloudflare', 'cloudflare-ipv6']
+
+# Only use servers that don't log queries and don't filter results
+require_nolog    = true
+require_nofilter = true
+require_dnssec   = false
+
+# Public resolvers source — dnscrypt-proxy downloads and caches this list
+[sources]
+  [sources.'public-resolvers']
+    urls = [
+      'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md',
+      'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md',
+    ]
+    cache_file   = '/config/public-resolvers.md'
+    minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+    refresh_delay = 72
+    prefix        = ''

@@ -1,129 +1,133 @@
-# Dockerhole - Pi-hole in Docker
+# Dockerhole — Pi-hole + DNS-over-HTTPS on macOS
 
-A simple Docker setup for running Pi-hole locally with persistent storage and DNS-over-HTTPS support via cloudflared.
+Pi-hole running in Docker Desktop on macOS, with encrypted upstream DNS via
+[dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy) and Pi-hole bound
+to standard port 53 so it works as a normal system DNS server.
 
-## Setup
+## Prerequisites
 
-1. Clone this repository
-2. Copy the sample environment file:
-   ```bash
-   cp sample.env .env
-   ```
-3. Edit the `.env` file and update the following values:
-   - `TZ`: Your timezone (e.g., America/Chicago, Europe/London)
-   - `WEBPASSWORD`: Choose a secure password for the Pi-hole web interface
-   - `DNS_TCP_PORT`/`DNS_UDP_PORT`: Change if port 5335 is already in use
-   - `WEB_PORT`: Change if port 8080 is already in use
+- macOS (tested on macOS Tahoe / macOS 26)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 
-4. Start Pi-hole and cloudflared:
-   ```bash
-   docker-compose up -d
-   ```
+## Quick Start
 
-## Usage
+```bash
+git clone https://github.com/PatrickTulskie/dockerhole
+cd dockerhole
+./scripts/setup.sh
+```
 
-- Access the Pi-hole web interface at `http://localhost:8080/admin` (or your configured port)
-- To use Pi-hole as your DNS server:
-  - For individual device: Set DNS server to your machine's IP address and port 5335
-  - For testing: Use `nslookup example.com localhost:5335`
+`setup.sh` is idempotent — safe to run multiple times. On first run it creates
+`.env` from `sample.env` and exits so you can set your password before the
+containers start. Edit `.env`, then run the script again.
 
-### Setting Up System-wide DNS
+## Why the loopback alias approach?
 
-#### macOS
-You can configure DNS settings in two ways:
+On macOS, `mDNSResponder` (the system DNS daemon) holds port 53 on
+`0.0.0.0`. Docker Desktop then layers its own port-forwarding on top, making it
+impossible for a container to bind `0.0.0.0:53` on the host.
 
-1. Using System Settings (GUI):
-   - Open System Settings > Network
-   - Select your active network connection (e.g., Wi-Fi or Ethernet)
-   - Click "Details..."
-   - Go to the "DNS" tab
-   - Click "+" to add a DNS server
-   - Add `127.0.0.1:5335`
-   - Click "OK" to save
+The fix: bind Pi-hole to a *loopback alias IP* (`127.0.0.2`) instead of
+`0.0.0.0`. `mDNSResponder` only binds `127.0.0.1`, so `127.0.0.2` is free.
+Docker maps the container's port 53 to `127.0.0.2:53` on the host with no
+conflicts. `setup.sh` creates this alias and installs a LaunchDaemon plist at
+`/Library/LaunchDaemons/com.dockerhole.loopback.plist` so it persists across
+reboots.
 
-2. Using Terminal (for specific interfaces):
-   ```bash
-   # List all network services/interfaces
-   networksetup -listallnetworkservices
-   
-   # Set DNS for Wi-Fi
-   sudo networksetup -setdnsservers "Wi-Fi" 127.0.0.1:5335
-   
-   # Set DNS for Ethernet
-   sudo networksetup -setdnsservers "Ethernet" 127.0.0.1:5335
-   ```
+## DNS configuration
 
-After changing DNS settings, flush the DNS cache:
+After running `setup.sh`, point your Mac's DNS at `127.0.0.2`.
+
+### Option A — System Settings (GUI)
+
+1. System Settings → Wi-Fi (or Ethernet) → Details → DNS
+2. Click **+** and add `127.0.0.2`
+3. Remove any existing DNS entries
+4. Click OK, then flush the cache:
+
 ```bash
 sudo killall -HUP mDNSResponder
 ```
 
-#### Linux (Network Manager)
-1. Create a NetworkManager DNS configuration:
-   ```bash
-   sudo nano /etc/NetworkManager/conf.d/dns-servers.conf
-   ```
-   Add these lines:
-   ```ini
-   [global-dns-domain-*]
-   servers=127.0.0.1:5335
-   ```
+### Option B — /etc/resolver (all interfaces, command-line)
 
-2. Edit your connection to use this configuration:
-   ```bash
-   sudo nmcli connection modify YOUR_CONNECTION ipv4.ignore-auto-dns yes
-   ```
+```bash
+sudo mkdir -p /etc/resolver
+echo "nameserver 127.0.0.2" | sudo tee /etc/resolver/default
+sudo killall -HUP mDNSResponder
+```
 
-3. Restart NetworkManager:
-   ```bash
-   sudo systemctl restart NetworkManager
-   ```
+### Verify it's working
 
-Replace YOUR_CONNECTION with your connection name (find it using `nmcli connection show`)
+```bash
+dig @127.0.0.2 google.com
+```
 
-#### Linux (systemd-resolved)
-1. Edit /etc/systemd/resolved.conf:
-   ```ini
-   [Resolve]
-   DNS=127.0.0.1:5335
-   DNSStubListener=no
-   ```
-2. Restart systemd-resolved:
-   ```bash
-   sudo systemctl restart systemd-resolved
-   ```
+## Pi-hole admin UI
 
-## Features
+```
+http://127.0.0.2/admin
+```
 
-### DNS-over-HTTPS
-The setup includes cloudflared as a DNS-over-HTTPS proxy, which automatically forwards DNS queries to Cloudflare's secure DNS servers (1.1.1.1 and 1.0.0.1). This provides:
-- Encrypted DNS queries
-- Protection against DNS spoofing
-- Better privacy for your DNS queries
+## DNS-over-HTTPS via dnscrypt-proxy
 
-## Data Persistence
+This setup uses [`klutchell/dnscrypt-proxy`](https://github.com/klutchell/dnscrypt-proxy-docker)
+as the upstream DoH provider, replacing the now-defunct `crazymax/cloudflared proxy-dns`
+command (removed from cloudflared in February 2026). dnscrypt-proxy is configured
+in `config/dnscrypt-proxy.toml` to use Cloudflare's DoH servers (`1.1.1.1`) and
+listens on port 5053 on the internal Docker network. Pi-hole forwards all upstream
+queries to it.
 
-All Pi-hole configuration and data are stored in the `pihole-data` directory:
-- `etc-pihole/`: Contains Pi-hole configuration files
-- `etc-dnsmasq.d/`: Contains DNS configuration files
+## Data persistence
+
+Pi-hole configuration and blocklists are stored in `pihole-data/` on the host and
+survive container restarts and image updates.
 
 ## Maintenance
 
-### Updating Docker Images
-To update your Docker images and restart the services with the latest versions:
+### Update images
+
 ```bash
 ./scripts/update.sh
 ```
 
-This script will:
-1. Pull the latest versions of all Docker images
-2. Stop running containers
-3. Prune unused Docker resources
-4. Restart the services with updated images
-5. Verify that services are running properly
+### Teardown
 
-## Stopping Pi-hole
+Stops all containers, unloads the LaunchDaemon, and removes the loopback alias:
 
-To stop all containers:
 ```bash
-docker-compose down
+./scripts/teardown.sh
+```
+
+## Troubleshooting
+
+### Port 53 conflict on startup
+
+If Pi-hole fails to bind port 53, verify the loopback alias exists:
+
+```bash
+ifconfig lo0 | grep 127.0.0.2
+```
+
+If missing, re-run `./scripts/setup.sh` to recreate it.
+
+### Container not starting
+
+Check logs:
+
+```bash
+docker compose logs pihole
+docker compose logs dnscrypt-proxy
+```
+
+### DNS queries not resolving
+
+1. Confirm the alias is up: `ifconfig lo0 | grep 127.0.0.2`
+2. Confirm Pi-hole is healthy: `docker compose ps`
+3. Test upstream: `dig @127.0.0.2 google.com`
+4. Check dnscrypt-proxy connected: `docker compose logs dnscrypt-proxy`
+
+### After a macOS reboot
+
+The LaunchDaemon recreates the loopback alias automatically. If for some reason
+it doesn't, run `./scripts/setup.sh` again.

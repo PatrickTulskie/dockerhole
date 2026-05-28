@@ -1,38 +1,34 @@
 services:
-  cloudflared:
-    container_name: cloudflared
-    image: crazymax/cloudflared:latest
-    command: proxy-dns
-    environment:
-      - TZ=${TZ:-America/Chicago}
-      - TUNNEL_DNS_UPSTREAM=https://1.1.1.1/dns-query,https://1.0.0.1/dns-query
-      - TUNNEL_DNS_PORT=5053
-      - TUNNEL_DNS_ADDRESS=0.0.0.0
+  dnscrypt-proxy:
+    container_name: dnscrypt-proxy
+    image: klutchell/dnscrypt-proxy:latest
+    volumes:
+      - ./config:/config
     networks:
       pihole_network:
         aliases:
-          - dns.cloudflared
+          - dnscrypt-proxy
     restart: unless-stopped
 
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
     ports:
-      - "${DNS_TCP_PORT:-5335}:53/tcp"
-      - "${DNS_UDP_PORT:-5335}:53/udp"
-      - "${WEB_PORT:-8080}:80/tcp"
+      - "${LOOPBACK_IP:-127.0.0.2}:53:53/tcp"
+      - "${LOOPBACK_IP:-127.0.0.2}:53:53/udp"
+      - "${LOOPBACK_IP:-127.0.0.2}:80:80/tcp"
     environment:
       TZ: ${TZ:-America/Chicago}
       WEBPASSWORD: ${WEBPASSWORD:-changeme}
-      PIHOLE_DNS_: 'dns.cloudflared#5053'
-      DNS_FQDN_REQUIRED: 'true'
+      FTLCONF_dns_upstreams: 'dnscrypt-proxy#5053'
+      FTLCONF_dns_listeningMode: 'all'
     volumes:
       - './pihole-data/etc-pihole:/etc/pihole'
       - './pihole-data/etc-dnsmasq.d:/etc/dnsmasq.d'
     networks:
       - pihole_network
     depends_on:
-      - cloudflared
+      - dnscrypt-proxy
     restart: unless-stopped
 
 networks:
