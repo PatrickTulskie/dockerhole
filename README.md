@@ -111,6 +111,12 @@ ifconfig lo0 | grep 127.0.0.2
 
 If missing, re-run `./scripts/setup.sh` to recreate it.
 
+### UDP port binding fails (`command failed`)
+
+If `docker compose up` errors with `ports are not available: exposing port UDP 127.0.0.2:53 ... command failed`, Docker Desktop's "Use kernel networking for UDP" setting is enabled. This routes UDP through the VM's kernel network stack, which cannot bind to macOS loopback aliases beyond `127.0.0.1`.
+
+Fix: Docker Desktop → **Settings** → **General** → uncheck **"Use kernel networking for UDP"** → Apply & Restart.
+
 ### Container not starting
 
 Check logs:
